@@ -200,8 +200,8 @@ plot(1:100,data_hospital$sum_S,type="l",ylim=c(0,max(c(data_hospital$sum_S,data_
 plot_S <- as.data.frame(cbind(1:100,data_hospital$sum_S))
 plot_I <- as.data.frame(cbind(1:100,data_hospital$sum_I))
 plot_I_admit <- as.data.frame(cbind(1:100,col_admit_count))
-sim_plot <- ggplot() + geom_line(aes(x=V1,y=V2,col),plot_S) + geom_line(aes(x=V1,y=V2),plot_I,col="red") + geom_point(aes(x=V1,y=col_admit_count),plot_I_admit,col="darkred",size=2.25)
-sim_plot <- sim_plot + xlab("Day") + ylab("Individuals") + ggtitle("Hospital Simulation") + theme_classic()
+sim_plot <- ggplot() + geom_line(aes(x=V1,y=V2),plot_S) + geom_line(aes(x=V1,y=V2),plot_I,col="red") + geom_point(aes(x=V1,y=col_admit_count),plot_I_admit,col="darkred",size=2.25)
+sim_plot <- sim_plot + xlab("Day") + ylab("Individuals") + ggtitle("Hospital Simulation") + theme_xkcd()
 print(sim_plot)
 
 # generating data for the MCMC

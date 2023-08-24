@@ -46,7 +46,7 @@ log_like <- function(t_admit,t_dis,t_test,id_test,res_test,z,p,beta,t_col,phi,a_
 }
 
 # function to run the MCMC
-MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col_0,phi_0,lambda_0,a_z,b_z,a_p,b_p,c,w,M,M_repeat,seed,end_noise){
+MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col_0,phi_0,lambda_0,a_z,b_z,a_p,b_p,c,w,M,M_repeat,seed,end_noise,print_it){
   
   # list of inputs:
   # t_admit - vector of admission times
@@ -70,6 +70,7 @@ MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col
   # M_repeat - number of updates to the latent variables within each MCMC iteration
   # seed - value of the random seed
   # end_noise - whether a noise is made at the end
+  # print_it - whether the iteration number is printed
   
   # setting the seed
   set.seed(seed)
@@ -97,6 +98,7 @@ MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col
   beta_vec <- rep(0,times=M+1)
   t_col_matrix <- matrix(0,nrow=M+1,ncol=n)
   phi_matrix <- matrix(0,nrow=M+1,ncol=n)
+  sum_I_matrix <- matrix(0,nrow=M+1,ncol=T_max)
   lambda_vec <- rep(0,times=M+1)
   
   # adding the initial values to the storage vectors/matrices
@@ -149,6 +151,7 @@ MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col
       }
     }
   }
+  sum_I_matrix[1,] <- sum_I
   
   # calculating the initial number of true positives and false negatives
   TP <- 0
@@ -176,7 +179,9 @@ MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col
   for(k in 1:M){
     
     # printing the current iteration number
-    print(k)
+    if(print_it==1){
+      print(k)
+    }
     
     # Gibbs step to update z
     z <- rbeta(1,a_z+TP,b_z+FN)
@@ -456,6 +461,7 @@ MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col
     # storing latent variables
     t_col_matrix[k+1,] <- t_col
     phi_matrix[k+1,] <- phi
+    sum_I_matrix[k+1,] <- sum_I
     
   }
   
@@ -465,7 +471,7 @@ MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col
   }
   
   # returning outputs
-  return(list(z=z_vec,p=p_vec,beta=beta_vec,t_col=t_col_matrix,phi=phi_matrix,lambda=lambda_vec,accept_beta=acc_beta/M,accept_latent=acc_latent/M_latent))
+  return(list(z=z_vec,p=p_vec,beta=beta_vec,t_col=t_col_matrix,phi=phi_matrix,sum_I=sum_I_matrix,lambda=lambda_vec,accept_beta=acc_beta/M,accept_latent=acc_latent/M_latent))
   
   # list of outputs
   # z - vector of generated values for the sensitivity
@@ -473,6 +479,7 @@ MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col
   # beta - vector of generated values for the transmission rate
   # t_col - matrix of generated vectors for colonisation times
   # phi - matrix of generated vectors for being colonised on admission
+  # sum_I - matrix of generate vectors for the number of individuals infected at each point in time
   # lambda - vector of the changing values of the tuning parameter
   # accept_beta - acceptance rate for the RWM step (updating beta)
   # accept_latent - acceptance rate for the latent variable step 
@@ -481,7 +488,7 @@ MRSA_MCMC <- function(t_admit,t_dis,t_test,id_test,res_test,z_0,p_0,beta_0,t_col
 
 # testing the MCMC (parameters only)
 M <- 10000
-MRSA_inference <- MRSA_MCMC(data_MRSA$admit_times,data_MRSA$dis_times,data_MRSA$test_times,data_MRSA$test_ids,data_MRSA$test_results,0.8,0.05,0.1,data_MRSA$col_times,data_MRSA$col_admit,0.01,1,1,1,1,0.001,0.3,M,50,1,0)
+MRSA_inference <- MRSA_MCMC(data_MRSA$admit_times,data_MRSA$dis_times,data_MRSA$test_times,data_MRSA$test_ids,data_MRSA$test_results,0.8,0.05,0.1,data_MRSA$col_times,data_MRSA$col_admit,0.01,1,1,1,1,0.001,0.3,M,50,1,0,1)
 
 # looking at the acceptance rate of beta
 MRSA_inference$accept_beta
@@ -539,10 +546,69 @@ cor(MRSA_inference$p,rowSums(MRSA_inference$phi))
 cor(MRSA_inference$beta,rowSums(is.finite(MRSA_inference$t_col)))
 cor(rowSums(MRSA_inference$phi),rowSums(is.finite(MRSA_inference$t_col)))
 
-# histograms
-hist(MRSA_inference$z,main="z"); abline(v=0.8,col="red")
-hist(MRSA_inference$p,main="p"); abline(v=0.05,col="red")
-hist(MRSA_inference$beta,main=expression(beta)); abline(v=0.1,col="red")
+# histograms for the parameters
+hist(MRSA_inference$z,main="z", freq=F); abline(v=0.8,col="red")
+hist(MRSA_inference$p,main="p", freq=F); abline(v=0.05,col="red")
+hist(MRSA_inference$beta,main=expression(beta),freq=F); abline(v=0.1,col="red")
+
+# number of infective individuals over time
+plot(1:500, apply(MRSA_inference$sum_I, 2, quantile, probs=0.975),type="n")
+polygon(c(1:500, 500:1), c(apply(MRSA_inference$sum_I, 2, quantile, probs=0.975), rev(apply(MRSA_inference$sum_I, 2, quantile, probs=0.025))), col = "lightgreen",border="lightgreen")
+lines(apply(MRSA_inference$sum_I, 2, median),type="l",col="blue")
+lines(data_MRSA$I_star, col="red")
+
+# histograms for select individuals
+# 20: infected on arrival (6-10)
+# 43: never infected (15-20)
+# 66: infected in the hospital (25-30, 26)
+index_20 <- c("arrival",6:10,"never")
+index_43 <- c("arrival",15:20,"never")
+index_66 <- c("arrival",25:30,"never")
+densities_20 <- rep(0,times=7)
+densities_43 <- rep(0,times=8)
+densities_66 <- rep(0,times=8)
+for(k in 1:(M+1)){
+  if(is.finite(MRSA_inference$t_col[k,20])){
+    time <- MRSA_inference$t_col[k,20]
+    densities_20[time-4] <- densities_20[time-4]+1
+  }
+  else if(MRSA_inference$phi[k,20]==1){
+    densities_20[1] <- densities_20[1]+1
+  }
+  else{
+    densities_20[7] <- densities_20[7]+1
+  }
+}
+for(k in 1:(M+1)){
+  if(is.finite(MRSA_inference$t_col[k,43])){
+    time <- MRSA_inference$t_col[k,43]
+    densities_43[time-13] <- densities_43[time-13]+1
+  }
+  else if(MRSA_inference$phi[k,43]==1){
+    densities_43[1] <- densities_43[1]+1
+  }
+  else{
+    densities_43[8] <- densities_43[8]+1
+  }
+}
+for(k in 1:(M+1)){
+  if(is.finite(MRSA_inference$t_col[k,66])){
+    time <- MRSA_inference$t_col[k,66]
+    densities_66[time-23] <- densities_66[time-23]+1
+  }
+  else if(MRSA_inference$phi[k,20]==1){
+    densities_66[1] <- densities_66[1]+1
+  }
+  else{
+    densities_66[8] <- densities_66[8]+1
+  }
+}
+densities_20 <- densities_20/(M+1)
+densities_43 <- densities_43/(M+1)
+densities_66 <- densities_66/(M+1)
+barplot(densities_20,space=0,names.arg=index_20,col=c("red","grey","grey","grey","grey","grey","grey"))
+barplot(densities_43,space=0,names.arg=index_43,col=c("grey","grey","grey","grey","grey","grey","grey","red"))
+barplot(densities_66,space=0,names.arg=index_66,col=c("grey","grey","red","grey","grey","grey","grey","grey"))
 
 # trace plots for the parameters in ggplot
 df_z <- as.data.frame(cbind(1:(M+1),MRSA_inference$z))
@@ -560,16 +626,16 @@ print(trace_beta)
 
 # histograms for the parameters in ggplot
 df_z_hist <- as.data.frame(MRSA_inference$z)
-hist_z <- ggplot() + geom_histogram(aes(x=MRSA_inference$z),df_z_hist,bins=15) + geom_vline(xintercept=0.8, color = "red", linewidth=1.2)
-hist_z <- hist_z + xlab("z") + ylab("Quantity") + ggtitle("Histogram of z") + theme_classic()
+hist_z <- ggplot() + geom_histogram(aes(x=MRSA_inference$z, y = ..density..),df_z_hist,bins=15) + geom_vline(xintercept=0.8, color = "red", linewidth=1.2)
+hist_z <- hist_z + xlab("z") + ylab("Density") + ggtitle("Histogram of z") + theme_classic()
 print(hist_z)
 df_p_hist <- as.data.frame(MRSA_inference$p)
-hist_p <- ggplot() + geom_histogram(aes(x=MRSA_inference$p),df_p_hist,bins=15) + geom_vline(xintercept=0.05, color = "red", linewidth=1.2)
-hist_p <- hist_p + xlab("p") + ylab("Quantity") + ggtitle("Histogram of p") + theme_classic()
+hist_p <- ggplot() + geom_histogram(aes(x=MRSA_inference$p, y = ..density..),df_p_hist,bins=15) + geom_vline(xintercept=0.05, color = "red", linewidth=1.2)
+hist_p <- hist_p + xlab("p") + ylab("Density") + ggtitle("Histogram of p") + theme_classic()
 print(hist_p)
 df_beta_hist <- as.data.frame(MRSA_inference$beta)
-hist_beta <- ggplot() + geom_histogram(aes(x=MRSA_inference$beta),df_beta_hist,bins=15) + geom_vline(xintercept=0.1, color = "red", linewidth=1.2)
-hist_beta <- hist_beta + xlab(expression(beta)) + ylab("Quantity") + ggtitle(expression(paste("Histogram of ", beta))) + theme_classic()
+hist_beta <- ggplot() + geom_histogram(aes(x=MRSA_inference$beta, y = ..density..),df_beta_hist,bins=15) + geom_vline(xintercept=0.1, color = "red", linewidth=1.2)
+hist_beta <- hist_beta + xlab(expression(beta)) + ylab("Density") + ggtitle(expression(paste("Histogram of ", beta))) + theme_classic()
 print(hist_beta)
 
 # plot of the scale function and trace of lambda in ggplot
@@ -608,20 +674,55 @@ corr_phi_t <- ggplot() + geom_point(aes(x=V1,y=V2),df_corr_phi_t)
 corr_phi_t <- corr_phi_t + xlab(expression(paste(Sigma,phi))) + ylab("Number of Finite Infection Times") + ggtitle(expression(paste("Correlation between ", Sigma, phi, " and the Number of Finite Infection Times"))) + theme_classic()
 print(corr_phi_t)
 
-# plots for latent variables
+# plots for latent variables in ggplot
 df_phi <- as.data.frame(cbind(1:(M+1),rowSums(MRSA_inference$phi)))
 trace_phi <- ggplot() + geom_line(aes(x=V1,y=V2),df_phi) + geom_hline(yintercept=sum(data_MRSA$col_admit), color = "red", linewidth=1.2)
 trace_phi <- trace_phi + xlab("Iteration") + ylab(expression(paste(Sigma,phi))) + ggtitle(expression(paste("Trace Plot of ", Sigma, phi))) + theme_classic()
 print(trace_phi)
 df_phi_hist <- as.data.frame(rowSums(MRSA_inference$phi))
-hist_phi <- ggplot() + geom_histogram(aes(x=rowSums(MRSA_inference$phi)),df_phi_hist,bins=15) + geom_vline(xintercept=sum(data_MRSA$col_admit), color = "red", linewidth=1.2)
-hist_phi <- hist_phi + xlab(expression(paste(Sigma,phi))) + ylab("Quantity") + ggtitle(expression(paste("Histogram of ", Sigma, phi))) + theme_classic()
+hist_phi <- ggplot() + geom_histogram(aes(x=rowSums(MRSA_inference$phi), y = ..density..),df_phi_hist,bins=15) + geom_vline(xintercept=sum(data_MRSA$col_admit), color = "red", linewidth=1.2)
+hist_phi <- hist_phi + xlab(expression(paste(Sigma,phi))) + ylab("Density") + ggtitle(expression(paste("Histogram of ", Sigma, phi))) + theme_classic()
 print(hist_phi)
 df_t <- as.data.frame(cbind(1:(M+1),rowSums(is.finite(MRSA_inference$t_col))))
 trace_t <- ggplot() + geom_line(aes(x=V1,y=V2),df_t) + geom_hline(yintercept=814, color = "red", linewidth=1.2)
 trace_t <- trace_t + xlab("Iteration") + ylab("Number of Finite Infection Times") + ggtitle("Trace Plot of the Number of Finite Infection Times") + theme_classic()
 print(trace_t)
 df_t_hist <- as.data.frame(rowSums(is.finite(MRSA_inference$t_col)))
-hist_t <- ggplot() + geom_histogram(aes(x=rowSums(is.finite(MRSA_inference$t_col))),df_t_hist,bins=15) + geom_vline(xintercept=814, color = "red", linewidth=1.2)
-hist_t <- hist_t + xlab("Number of Finite Infection Times") + ylab("Quantity") + ggtitle("Histogram of the Number of Finite Infection Times") + theme_classic()
+hist_t <- ggplot() + geom_histogram(aes(x=rowSums(is.finite(MRSA_inference$t_col)), y = ..density..),df_t_hist,bins=15) + geom_vline(xintercept=814, color = "red", linewidth=1.2)
+hist_t <- hist_t + xlab("Number of Finite Infection Times") + ylab("Density") + ggtitle("Histogram of the Number of Finite Infection Times") + theme_classic()
 print(hist_t)
+
+# number of infective individuals over time in ggplot
+df_infectives <- as.data.frame(cbind(1:500,apply(MRSA_inference$sum_I, 2, quantile, probs=c(0.025)),apply(MRSA_inference$sum_I, 2, quantile, probs=c(0.5)),apply(MRSA_inference$sum_I, 2, quantile, probs=c(0.975)),data_MRSA$I_star))
+infectives1 <- ggplot(df_infectives,aes(x=V1)) + xlim(1, 100) + geom_ribbon(aes(ymin=V2,ymax=V4,fill="lightgreen")) + geom_line(aes(y=V3,col="blue")) + geom_line(aes(y=V5,col="red")) + scale_fill_identity(name = '', guide = 'legend',labels = c('95% Credible Interval')) + scale_colour_manual(name = '', values =c('blue'='blue','red'='red'), labels = c('Median','True Value'))
+infectives1 <- infectives1 + xlab("") + ylab("") + ggtitle("Number of Infective Individuals Over Time") + theme_classic() + theme(legend.position=c(0.85,0.95),legend.direction="horizontal")
+print(infectives1)
+infectives2 <- ggplot(df_infectives,aes(x=V1)) + xlim(101, 200) + geom_ribbon(aes(ymin=V2,ymax=V4),fill="lightgreen") + geom_line(aes(y=V3),col="blue") + geom_line(aes(y=V5),col="red")
+infectives2 <- infectives2 + xlab("") + ylab("") + ggtitle("") + theme_classic()
+print(infectives2)
+infectives3 <- ggplot(df_infectives,aes(x=V1)) + xlim(201, 300) + geom_ribbon(aes(ymin=V2,ymax=V4),fill="lightgreen") + geom_line(aes(y=V3),col="blue") + geom_line(aes(y=V5),col="red")
+infectives3 <- infectives3 + xlab("") + ylab("Infective Individuals") + ggtitle("") + theme_classic()
+print(infectives3)
+infectives4 <- ggplot(df_infectives,aes(x=V1)) + xlim(301, 400) + geom_ribbon(aes(ymin=V2,ymax=V4),fill="lightgreen") + geom_line(aes(y=V3),col="blue") + geom_line(aes(y=V5),col="red")
+infectives4 <- infectives4 + xlab("") + ylab("") + ggtitle("") + theme_classic()
+print(infectives4)
+infectives5 <- ggplot(df_infectives,aes(x=V1)) + xlim(401, 500) + geom_ribbon(aes(ymin=V2,ymax=V4),fill="lightgreen") + geom_line(aes(y=V3),col="blue") + geom_line(aes(y=V5),col="red")
+infectives5 <- infectives5 + xlab("Day") + ylab("") + ggtitle("") + theme_classic() 
+print(infectives5)
+
+# histograms for select individuals in ggplot
+index_20 <- factor(index_20,levels=index_20)
+df_20 <- data.frame(index=index_20,dens=densities_20)
+hist_20 <- ggplot(df_20, aes(x=index, y=dens)) + geom_bar(stat="identity",fill=c("red","#595959","#595959","#595959","#595959","#595959","#595959"),width = 1)
+hist_20 <- hist_20 + xlab("Infection Time") + ylab("Density") + ggtitle("Histogram of Infection Times for Individual 20") + theme_classic()
+print(hist_20)
+index_43 <- factor(index_43,levels=index_43)
+df_43 <- data.frame(index=index_43,dens=densities_43)
+hist_43 <- ggplot(df_43, aes(x=index, y=dens)) + geom_bar(stat="identity",fill=c("#595959","#595959","#595959","#595959","#595959","#595959","#595959","red"),width = 1)
+hist_43 <- hist_43 + xlab("Infection Time") + ylab("Density") + ggtitle("Histogram of Infection Times for Individual 43") + theme_classic()
+print(hist_43)
+index_66 <- factor(index_66,levels=index_66)
+df_66 <- data.frame(index=index_66,dens=densities_66)
+hist_66 <- ggplot(df_66, aes(x=index, y=dens)) + geom_bar(stat="identity",fill=c("#595959","#595959","red","#595959","#595959","#595959","#595959","#595959"),width = 1)
+hist_66 <- hist_66 + xlab("Infection Time") + ylab("Density") + ggtitle("Histogram of Infection Times for Individual 66") + theme_classic()
+print(hist_66)
